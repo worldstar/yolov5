@@ -568,6 +568,10 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
             if redundant:
                 i = i[iou.sum(1) > 1]  # require redundancy
 
+        print("")
+        for data in x:
+            print('name: {0}, score: {1}, position: {2}'.format(data[5], data[4], data[:4]))
+
         output[xi] = x[i]
         if (time.time() - t) > time_limit:
             print(f'WARNING: NMS time limit {time_limit}s exceeded')
