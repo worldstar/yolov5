@@ -21,6 +21,75 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized
 
 # python yolov5DetectToJson.py --weights runs/train/yolov5s_results/weights/best.pt --img 416 --conf 0.4 --source ./test/images --save-txt --save-conf
 
+# add Data json
+# image_dirPath: 照片路徑
+# json_dirPath: json路徑
+# imageName: 照片名稱
+# nameFile: josn名稱
+# path: 原始照片路徑
+# im0s: 照片檔案
+# shapes: label格式
+def createLebelmeJson(image_dirPath, json_dirPath, imageName, nameFile, path, im0s, shapes):
+
+    jsonFile = {}
+    version = "4.5.7"
+    flags = {}
+
+
+    imagePath = os.path.join(os.path.dirname(__file__), ".{0}/{1}".format(image_dirPath[(image_dirPath.index("images") - 1):], imageName))
+    imagePath = imagePath.replace("\\", "/")
+
+    imageData = str(base64.b64encode(open(path, "rb").read()))
+    imageHeight = im0s.shape[0]
+    imageWidth = im0s.shape[1]
+
+    # create jsonFile format
+    if shapes != []:
+        jsonFile = {"version": version ,\
+                    "flags": flags,\
+                    "shapes": shapes,\
+                    "imagePath": imagePath,\
+                    "imageData": imageData[2:-1],\
+                    "imageHeight": imageHeight,\
+                    "imageWidth": imageWidth}
+
+        # create Images
+        shutil.copyfile(path, "{0}/{1}".format(image_dirPath.replace("\\", "/"), imageName))
+
+
+        # create .json
+        f = open(json_dirPath + "/" + nameFile, 'w')
+        f.write(json.dumps(jsonFile, indent = 2))
+        f.close()
+
+
+# get Shapes
+# shapes: label格式
+# labelName: label名字
+# positionXY: 座標
+# group_id:
+# shape_type:
+# flags:
+def getShapes(shapes, labelName, positionXY, group_id, shape_type, flags):
+
+    points = []
+
+    points.append([positionXY[0], positionXY[1]])
+    points.append([positionXY[2], positionXY[3]])
+
+    shapes.append({"label": labelName,\
+                   "points": points,\
+                   "group_id": group_id,\
+                   "shape_type": shape_type,\
+                   "flags": flags})
+
+    return shapes
+
+# Create dir
+def createDirImage(image_dirPath):
+    os.makedirs(image_dirPath)
+
+
 def detect(save_img=False):
 
     source, weights, view_img, save_txt, imgsz = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size
@@ -69,22 +138,13 @@ def detect(save_img=False):
     t0 = time.time()
     
     # 新增json資料夾
-    json_dirPath = "{0}".format(save_dir).replace("\\", "/")
-    image_dirPath = "{0}/images".format(save_dir)
-    os.makedirs(image_dirPath)
+    createDirImage("{0}/images".format(save_dir))
+
     
     for path, img, im0s, vid_cap in dataset:
 
-        # add Data json
-        nameFile = ""
-        jsonFile = {}
-        version = "4.5.7"
-        flags = {}
+        # shapes Data
         shapes = []
-        imagePath = ""
-        imageData = ""
-        imageHeight = ""
-        imageWidth = ""
 
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -118,9 +178,7 @@ def detect(save_img=False):
             txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
             s += '%gx%g ' % img.shape[2:]  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-            print(p.name[:-4])
-            nameFile = p.name[:-4] + ".json"
-            imageName = p.name[:-4] + ".JPG"
+
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
@@ -143,25 +201,13 @@ def detect(save_img=False):
                         line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
                         with open(txt_path + '.txt', 'a') as f:
                             f.write(('%g ' * len(line)).rstrip() % line + '\n')
-                        
-                        # jsonLabelData = ('%g ' * len((cls, *xywh))).rstrip() % (cls, *xywh)
-                        # print("labelName: {0}, position: {1}".format(names[int(cls)], xywh))
-
-
+        
                     if save_img or view_img:  # Add bbox to image
                         label = f'{names[int(cls)]} {conf:.2f}'
                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
 
                         # create shapes format
-                        positionXY = torch.tensor(xyxy).view(1, 4).view(-1).tolist()
-                        labelName = names[int(cls)]
-                        points.append([positionXY[0], positionXY[1]])
-                        points.append([positionXY[2], positionXY[3]])
-                        shapes.append({"label": labelName,\
-                                       "points": points,\
-                                       "group_id": None,\
-                                       "shape_type": shape_type,\
-                                       "flags": flags})
+                        getShapes(shapes, names[int(cls)], torch.tensor(xyxy).view(1, 4).view(-1).tolist(), None, "rectangle", {})
 
             # Print time (inference + NMS)
             print(f'{s}Done. ({t2 - t1:.3f}s)')
@@ -174,16 +220,7 @@ def detect(save_img=False):
             if save_img:
                 if dataset.mode == 'image':
                     cv2.imwrite(save_path, im0)
-                    # print('path: {0}, shape: {1}'.format(save_path, im0.shape))
-                    # print(base64.b64encode(open(save_path, "rb").read()))
-                    # 原本是save_path
 
-                    imagePath = os.path.join(os.path.dirname(__file__), ".{0}/{1}".format(image_dirPath[(image_dirPath.index("images") - 1):], imageName))
-                    imagePath = imagePath.replace("\\", "/")
-
-                    imageData = str(base64.b64encode(open(path, "rb").read()))
-                    imageHeight = im0s.shape[0]
-                    imageWidth = im0s.shape[1]
                 else:  # 'video'
                     if vid_path != save_path:  # new video
                         vid_path = save_path
@@ -197,24 +234,8 @@ def detect(save_img=False):
                         vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
                     vid_writer.write(im0)
 
-            # create jsonFile format
-            if shapes != []:
-                jsonFile = {"version": version ,\
-                            "flags": flags,\
-                            "shapes": shapes,\
-                            "imagePath": imagePath,\
-                            "imageData": imageData[2:-1],\
-                            "imageHeight": imageHeight,\
-                            "imageWidth": imageWidth}
-
-                # create Images
-                shutil.copyfile(path, "{0}/{1}".format(image_dirPath.replace("\\", "/"), imageName))
-
-
-                # create .json
-                f = open(json_dirPath + "/" + nameFile, 'w')
-                f.write(json.dumps(jsonFile, indent = 2))
-                f.close()
+            # createLebelmeJson
+            createLebelmeJson("{0}/images".format(save_dir), "{0}".format(save_dir).replace("\\", "/"), p.name[:-4] + ".JPG", p.name[:-4] + ".json", path, im0s, shapes)
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
