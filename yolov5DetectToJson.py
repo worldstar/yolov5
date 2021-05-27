@@ -22,14 +22,14 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized
 # python yolov5DetectToJson.py --weights runs/train/yolov5s_results/weights/best.pt --img 416 --conf 0.4 --source ./test/images --save-txt --save-conf
 
 # add Data json
-# image_dirPath: 照片路徑
-# json_dirPath: json路徑
+# image_dirPath: 照片存放路徑
+# json_dirPath: json存放路徑
 # imageName: 照片名稱
 # nameFile: josn名稱
 # path: 原始照片路徑
-# im0s: 照片檔案
+# image: 已讀取照片的記憶體位置
 # shapes: label格式
-def createLebelmeJson(image_dirPath, json_dirPath, imageName, nameFile, path, im0s, shapes):
+def createLebelmeJson(image_dirPath, json_dirPath, imageName, nameFile, path, image, shapes):
 
     jsonFile = {}
     version = "4.5.7"
@@ -40,8 +40,8 @@ def createLebelmeJson(image_dirPath, json_dirPath, imageName, nameFile, path, im
     imagePath = imagePath.replace("\\", "/")
 
     imageData = str(base64.b64encode(open(path, "rb").read()))
-    imageHeight = im0s.shape[0]
-    imageWidth = im0s.shape[1]
+    imageHeight = image.shape[0]
+    imageWidth = image.shape[1]
 
     # create jsonFile format
     if shapes != []:
